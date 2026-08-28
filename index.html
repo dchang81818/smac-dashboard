@@ -8,6 +8,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
   :root{
     --deep:#0B2E33;
@@ -508,7 +510,22 @@
 </div>
 
 <script>
-const STORAGE_KEY = 'dashboard-data';
+// --- Firebase setup (replaces Claude's window.storage for standalone hosting) ---
+const firebaseConfig = {
+  apiKey: "AIzaSyBxysnf7wQGqKksdzhriGVOMTYGWZ2KGps",
+  authDomain: "smac-national-dashboard.firebaseapp.com",
+  projectId: "smac-national-dashboard",
+  storageBucket: "smac-national-dashboard.firebasestorage.app",
+  messagingSenderId: "1071754214722",
+  appId: "1:1071754214722:web:eeb0e40230026befdb9cdb",
+  measurementId: "G-WT756S9XZ3"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+function dashboardDocRef(){
+  return db.collection('smac-dashboard').doc('main');
+}
+
 let data = null;
 let chart = null;
 let editMode = false;
@@ -565,8 +582,8 @@ const DEFAULTS = {
 
 async function loadData(){
   try{
-    const res = await window.storage.get(STORAGE_KEY, true);
-    data = res ? JSON.parse(res.value) : structuredClone(DEFAULTS);
+    const docSnap = await dashboardDocRef().get();
+    data = (docSnap.exists && docSnap.data().json) ? JSON.parse(docSnap.data().json) : structuredClone(DEFAULTS);
   }catch(e){
     data = structuredClone(DEFAULTS);
   }
@@ -704,29 +721,40 @@ async function confirmImportData(){
   data.practiceType = p.practiceType || {};
   data.shoutouts = p.shoutouts || [];
   data.confidenceReminders = p.confidenceReminders || {};
-  closeImportModal();
-  await saveData();
-  render();
+  if(errEl){ errEl.className = 'status-msg'; errEl.style.color = ''; errEl.textContent = 'Saving to database…'; }
+  const ok = await saveData();
+  if(ok){
+    closeImportModal();
+    render();
+  }else{
+    if(errEl){
+      errEl.className = 'status-msg err';
+      errEl.textContent = "Restore didn't save — " + document.getElementById('lastUpdated').textContent;
+    }
+  }
 }
 
 async function saveData(){
   const maxAttempts = 3;
+  let lastError = null;
   for(let attempt=1; attempt<=maxAttempts; attempt++){
     try{
-      const result = await window.storage.set(STORAGE_KEY, JSON.stringify(data), true);
-      if(result){
-        document.getElementById('lastUpdated').textContent = 'Updated ' + new Date().toLocaleString();
-        lastSaveFailed = false;
-        return true;
-      }
+      await dashboardDocRef().set({
+        json: JSON.stringify(data),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      document.getElementById('lastUpdated').textContent = 'Updated ' + new Date().toLocaleString();
+      lastSaveFailed = false;
+      return true;
     }catch(e){
-      // save attempt failed silently; retried below, and the footer message covers final failure
+      lastError = e;
     }
     if(attempt < maxAttempts){
       await new Promise(r=>setTimeout(r, 500 * attempt));
     }
   }
-  document.getElementById('lastUpdated').textContent = "Last save didn't go through — your changes are still on this screen, trying again shortly.";
+  const errDetail = lastError ? (lastError.code || lastError.message || String(lastError)) : 'unknown error';
+  document.getElementById('lastUpdated').textContent = "Last save didn't go through (" + errDetail + ") — your changes are still on this screen, trying again shortly.";
   lastSaveFailed = true;
   return false;
 }
