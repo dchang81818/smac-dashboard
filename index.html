@@ -994,6 +994,7 @@ async function deleteSwimmer(id){
 
 /* ---- Attendance entry (tap yes/no) ---- */
 let attendanceDirty = false;
+let attendanceAutoSaveTimer = null;
 function currentSessionKey(){
   const dateEl = document.getElementById('attDate');
   const sessionEl = document.getElementById('attSession');
@@ -1092,13 +1093,16 @@ function markAttendanceDirty(){
   attendanceDirty = true;
   const statusEl = document.getElementById('attSaveStatus');
   if(statusEl){
-    statusEl.textContent = 'Unsaved changes';
+    statusEl.textContent = 'Unsaved changes — saving shortly…';
     statusEl.onclick = null;
     statusEl.style.cursor = 'default';
   }
+  if(attendanceAutoSaveTimer) clearTimeout(attendanceAutoSaveTimer);
+  attendanceAutoSaveTimer = setTimeout(()=>{ saveAttendanceNow(); }, 1500);
 }
 
 async function saveAttendanceNow(){
+  if(attendanceAutoSaveTimer){ clearTimeout(attendanceAutoSaveTimer); attendanceAutoSaveTimer = null; }
   const statusEl = document.getElementById('attSaveStatus');
   if(statusEl){ statusEl.textContent = 'Saving…'; statusEl.onclick = null; statusEl.style.cursor = 'default'; }
   const ok = await saveData();
@@ -1114,6 +1118,7 @@ async function saveAttendanceNow(){
   }
   renderAttendanceSummary(); renderAttendanceChart(); renderAttendanceHistory();
   renderJarsSafely();
+  return ok;
 }
 
 function renderShoutouts(){
@@ -1354,7 +1359,7 @@ function renderReminderSetsList(){
 }
 
 /* ---- Edit mode ---- */
-function toggleEditAll(){
+async function toggleEditAll(){
   if(editMode){
     // currently editing -> close everything and re-lock
     editMode = false;
@@ -1365,7 +1370,8 @@ function toggleEditAll(){
     document.getElementById('practiceSetsEditPanel').classList.remove('open');
     document.getElementById('editToggle').textContent = '⚙ Take Attendance';
     data.config.teamName = document.getElementById('teamName').textContent.trim() || DEFAULTS.config.teamName;
-    saveData().then(ok=>{ if(ok) attendanceDirty = false; });
+    if(attendanceAutoSaveTimer){ clearTimeout(attendanceAutoSaveTimer); attendanceAutoSaveTimer = null; }
+    await saveAttendanceNow(); // saves everything in data, including any unsaved attendance and the team name edit
     coachUnlocked = false;
     document.getElementById('globalLockGate').classList.remove('open');
     document.getElementById('coachCodeInput').value = '';
