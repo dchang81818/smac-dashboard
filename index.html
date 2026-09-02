@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Baloo+2:wght@500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
@@ -145,9 +145,12 @@
     background:rgba(255,255,255,.9); border-radius:8px; padding:14px 18px; display:inline-block;
     color:var(--ink); font-weight:500;
   }
-  .sticky-board{display:flex; flex-wrap:wrap; gap:16px 14px; justify-content:center;}
+  .sticky-board{display:grid; grid-template-columns:repeat(3, 1fr); gap:16px 14px; max-width:580px; margin:0 auto;}
+  @media (max-width:640px){
+    .sticky-board{ grid-template-columns:repeat(2, 1fr); gap:12px 10px; max-width:400px; }
+  }
   .sticky-star{
-    position:relative; width:168px; height:168px; flex:0 0 auto;
+    position:relative; width:100%; aspect-ratio:1/1;
     border-radius:16px;
     display:flex; align-items:center; justify-content:center;
     box-shadow: 2px 4px 8px rgba(0,0,0,.28);
@@ -452,12 +455,13 @@
     <h2>Attendance</h2>
     <p class="section-sub">Daily practice attendance</p>
     <div class="jar-controls">
-      <select id="attendanceWeekFilter" onchange="renderAttendanceChart()">
+      <select id="attendanceWeekFilter" onchange="renderAttendanceChartSafely()">
         <option value="">This week</option>
       </select>
     </div>
     <div class="card">
       <canvas id="attendanceChart" height="180"></canvas>
+      <div id="attendanceChartError" class="status-msg err"></div>
     </div>
 
     <div class="edit-panel" id="attendanceEditPanel">
@@ -846,7 +850,7 @@ function render(){
   document.getElementById('teamName').textContent = data.config.teamName || DEFAULTS.config.teamName;
   safeRender('renderMeetRow', renderMeetRow);
   safeRender('renderMeetEditList', renderMeetEditList);
-  safeRender('renderAttendanceChart', renderAttendanceChart);
+  renderAttendanceChartSafely();
   safeRender('renderAttendanceHistory', renderAttendanceHistory);
   safeRender('renderRosterManageList', renderRosterManageList);
   safeRender('renderRosterEntryList', renderRosterEntryList);
@@ -975,6 +979,16 @@ function formatMonSatRangeLabel(weekStartKey){
   return startStr+' – '+endStr;
 }
 
+function renderAttendanceChartSafely(){
+  const errEl = document.getElementById('attendanceChartError');
+  if(errEl) errEl.textContent = '';
+  try{
+    renderAttendanceChart();
+  }catch(e){
+    if(errEl) errEl.textContent = 'Chart failed to load: ' + (e && e.message ? e.message : String(e));
+  }
+}
+
 function renderAttendanceChart(){
   renderAttendanceWeekFilterOptions();
   const ctx = document.getElementById('attendanceChart');
@@ -1045,7 +1059,7 @@ async function deleteAttendanceEntry(key){
   delete data.attendance[key];
   if(data.practiceType) delete data.practiceType[key];
   await saveData();
-  renderAttendanceChart(); renderAttendanceHistory(); renderJarsSafely();
+  renderAttendanceChartSafely(); renderAttendanceHistory(); renderJarsSafely();
 }
 
 /* ---- Roster management ---- */
@@ -1086,7 +1100,7 @@ async function bulkAddRoster(){
 async function deleteSwimmer(id){
   data.roster = data.roster.filter(s=>s.id!==id);
   await saveData();
-  renderRosterManageList(); renderRosterEntryList(); renderAttendanceChart(); renderAttendanceHistory(); renderJarsSafely(); renderShoutouts();
+  renderRosterManageList(); renderRosterEntryList(); renderAttendanceChartSafely(); renderAttendanceHistory(); renderJarsSafely(); renderShoutouts();
 }
 
 /* ---- Attendance entry (tap yes/no) ---- */
@@ -1213,7 +1227,7 @@ async function saveAttendanceNow(){
       statusEl.onclick = () => saveAttendanceNow();
     }
   }
-  renderAttendanceChart(); renderAttendanceHistory();
+  renderAttendanceChartSafely(); renderAttendanceHistory();
   renderJarsSafely();
   return ok;
 }
@@ -1876,7 +1890,7 @@ setInterval(async ()=>{
   if(lastSaveFailed){
     const ok = await saveData();
     if(ok){
-      renderAttendanceChart(); renderAttendanceHistory(); renderJarsSafely();
+      renderAttendanceChartSafely(); renderAttendanceHistory(); renderJarsSafely();
       const statusEl = document.getElementById('attSaveStatus');
       if(statusEl){ statusEl.textContent = 'Saved ✓'; statusEl.onclick = null; statusEl.style.cursor = 'default'; }
     }
