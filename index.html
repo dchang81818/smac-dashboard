@@ -6,7 +6,7 @@
 <title>SMACNationalDashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Baloo+2:wght@500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
@@ -124,28 +124,64 @@
     background:var(--flag); color:#fff; border-radius:5px; font-family:'IBM Plex Mono',monospace;
     font-size:11px; font-weight:500; padding:5px 9px;
   }
-  .week-row:hover .del-btn, .shoutout-card:hover .del-btn{visibility:visible;}
+  .week-row:hover .del-btn{visibility:visible;}
 
-  /* SHOUTOUTS */
-  .shoutout-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:12px;}
-  .shoutout-card{
-    background:var(--card); border-radius:var(--radius); padding:14px 16px;
-    border-left:4px solid var(--rope);
-    box-shadow:0 1px 3px rgba(11,46,51,.08);
-    position:relative;
+  /* SHOUTOUTS — bulletin board of star sticky notes */
+  .bulletin-board{
+    background:
+      radial-gradient(circle at 12% 22%, rgba(80,50,24,.20) 1px, transparent 1.6px),
+      radial-gradient(circle at 52% 68%, rgba(80,50,24,.16) 1px, transparent 1.6px),
+      radial-gradient(circle at 82% 12%, rgba(80,50,24,.14) 1px, transparent 1.6px),
+      radial-gradient(circle at 30% 88%, rgba(80,50,24,.13) 1px, transparent 1.6px),
+      radial-gradient(circle at 92% 55%, rgba(80,50,24,.12) 1px, transparent 1.6px),
+      linear-gradient(135deg, #CB9A61, #A97A46);
+    background-size: 16px 16px, 20px 20px, 24px 24px, 18px 18px, 22px 22px, 100% 100%;
+    border: 10px solid #6B4423;
+    border-radius: 14px;
+    padding: 26px 18px;
+    box-shadow: inset 0 0 40px rgba(0,0,0,.32), 0 4px 14px rgba(11,46,51,.18);
   }
-  .shoutout-card .name{font-family:'Oswald',sans-serif; font-weight:600; font-size:14.5px; margin-bottom:4px;}
-  .shoutout-card .text{font-size:13.5px; line-height:1.45; margin-bottom:8px;}
-  .shoutout-card .date{font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--lane);}
+  .bulletin-board .empty-state{
+    background:rgba(255,255,255,.9); border-radius:8px; padding:14px 18px; display:inline-block;
+    color:var(--ink); font-weight:500;
+  }
+  .sticky-board{display:flex; flex-wrap:wrap; gap:16px 14px; justify-content:center;}
+  .sticky-star{
+    position:relative; width:168px; height:168px; flex:0 0 auto;
+    border-radius:16px;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow: 2px 4px 8px rgba(0,0,0,.28);
+    transition: transform .15s ease;
+  }
+  .sticky-star:hover{ transform: scale(1.06) rotate(0deg) !important; z-index:5; }
+  .sticky-content{width:84%; text-align:center;}
+  .sticky-name{font-family:'Baloo 2',cursive; font-weight:700; font-size:14px; margin-bottom:5px; color:#3A2A12;}
+  .sticky-text{
+    font-family:'Baloo 2',cursive; font-weight:500; font-size:12.5px; line-height:1.32; color:#3A2A12;
+    display:-webkit-box; -webkit-line-clamp:5; -webkit-box-orient:vertical; overflow:hidden;
+  }
+  .sticky-recipients{font-family:'Baloo 2',cursive; font-weight:500; font-size:10px; color:#5A4020; margin-top:5px;}
+  .sticky-date{font-family:'IBM Plex Mono',monospace; font-size:8px; color:#6A5030; margin-top:5px;}
+  .sticky-del{
+    position:absolute; top:6px; right:6px; z-index:3; visibility:visible !important;
+    background:rgba(255,255,255,.9); border-radius:50%; width:20px; height:20px;
+    padding:0; font-size:12px; line-height:20px; text-align:center;
+  }
+  .sticky-yellow{background:linear-gradient(135deg,#FFE38A,#FFD24C);}
+  .sticky-pink{background:linear-gradient(135deg,#FFB6C1,#FF8FA3);}
+  .sticky-blue{background:linear-gradient(135deg,#9FD8F0,#6EC1E4);}
+  .sticky-green{background:linear-gradient(135deg,#B9E8A8,#8FD474);}
+  .sticky-orange{background:linear-gradient(135deg,#FFC98B,#FFAA5C);}
+  .rot0{transform:rotate(-4deg);}
+  .rot1{transform:rotate(3deg);}
+  .rot2{transform:rotate(-2deg);}
+  .rot3{transform:rotate(5deg);}
+  .rot4{transform:rotate(-6deg);}
   .shoutout-recipients{font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--pool); background:#EAF6F6; border-radius:5px; padding:4px 7px; margin-bottom:8px; display:inline-block;}
   .import-recipients{font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--pool); display:block; margin-top:2px;}
-  .shoutout-card .del-btn{position:absolute; top:8px; right:8px;}
   .empty-state{font-family:'IBM Plex Mono',monospace; font-size:13px; color:var(--lane); padding:14px 4px;}
 
   /* ATTENDANCE */
-  .attendance-summary{display:flex; align-items:baseline; gap:10px; margin-bottom:14px;}
-  .attendance-summary .big-pct{font-family:'Oswald',sans-serif; font-weight:700; font-size:38px; color:var(--pool);}
-  .attendance-summary .sub{font-family:'IBM Plex Mono',monospace; font-size:12.5px; color:var(--lane);}
   .history-row{display:flex; align-items:center; justify-content:space-between; padding:8px 4px; border-bottom:1px solid #E4EEEE; font-size:13.5px;}
   .history-row:last-child{border-bottom:none;}
   .history-row .lbl{font-weight:600;}
@@ -371,7 +407,14 @@
   <section>
     <h2>Shoutouts</h2>
     <p class="section-sub">Send a Saturday shoutout in GroupMe to give a shoutout next week! Include a person's name (just first name is fine), or say "everyone" to give everyone a shoutout!</p>
-    <div class="shoutout-grid" id="shoutoutGrid"></div>
+    <div class="jar-controls">
+      <select id="shoutoutWeekFilter" onchange="renderShoutouts()">
+        <option value="">All weeks</option>
+      </select>
+    </div>
+    <div class="bulletin-board">
+      <div class="sticky-board" id="shoutoutGrid"></div>
+    </div>
 
     <div class="edit-panel" id="shoutoutEditPanel">
       <h3>Import from GroupMe (copy/paste)</h3>
@@ -408,14 +451,14 @@
   <section>
     <h2>Attendance</h2>
     <p class="section-sub">Daily practice attendance</p>
-    <div class="card">
-      <div class="attendance-summary">
-        <div class="big-pct" id="attBigPct">–</div>
-        <div class="sub" id="attBigSub">no attendance logged yet</div>
-      </div>
-      <canvas id="attendanceChart" height="140"></canvas>
+    <div class="jar-controls">
+      <select id="attendanceWeekFilter" onchange="renderAttendanceChart()">
+        <option value="">This week</option>
+      </select>
     </div>
-    <div class="card" id="attHistoryCard" style="margin-top:10px;"></div>
+    <div class="card">
+      <canvas id="attendanceChart" height="180"></canvas>
+    </div>
 
     <div class="edit-panel" id="attendanceEditPanel">
       <h3>Take attendance</h3>
@@ -450,6 +493,10 @@
       <div id="weeklyDocLinkStatus" class="status-msg"></div>
 
       <div class="roster-list" id="rosterList"></div>
+
+      <h3 style="margin-top:20px;">Manage attendance entries</h3>
+      <p class="hint">Tap ✕ to delete an entry — for example, if it was logged before AM/PM sessions existed, or by mistake.</p>
+      <div class="card" id="attHistoryCard"></div>
 
       <h3 style="margin-top:20px;">Manage roster</h3>
       <div class="roster-manage-list" id="rosterManageList"></div>
@@ -520,9 +567,17 @@ const firebaseConfig = {
   appId: "1:1071754214722:web:eeb0e40230026befdb9cdb",
   measurementId: "G-WT756S9XZ3"
 };
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
+let db = null;
+let firebaseReady = false;
+try{
+  firebase.initializeApp(firebaseConfig);
+  db = firebase.firestore();
+  firebaseReady = true;
+}catch(e){
+  firebaseReady = false;
+}
 function dashboardDocRef(){
+  if(!db) throw new Error('Firebase is not connected');
   return db.collection('smac-dashboard').doc('main');
 }
 
@@ -586,6 +641,10 @@ async function loadData(){
     data = (docSnap.exists && docSnap.data().json) ? JSON.parse(docSnap.data().json) : structuredClone(DEFAULTS);
   }catch(e){
     data = structuredClone(DEFAULTS);
+    if(!firebaseReady){
+      const footer = document.getElementById('lastUpdated');
+      if(footer) footer.textContent = "⚠ Couldn't connect to the database — showing blank/default data. Try reloading the page.";
+    }
   }
   if(!data.config) data.config = structuredClone(DEFAULTS.config);
   if(data.config.teamName === 'SMAC National Group Shoutout Board'){
@@ -787,7 +846,6 @@ function render(){
   document.getElementById('teamName').textContent = data.config.teamName || DEFAULTS.config.teamName;
   safeRender('renderMeetRow', renderMeetRow);
   safeRender('renderMeetEditList', renderMeetEditList);
-  safeRender('renderAttendanceSummary', renderAttendanceSummary);
   safeRender('renderAttendanceChart', renderAttendanceChart);
   safeRender('renderAttendanceHistory', renderAttendanceHistory);
   safeRender('renderRosterManageList', renderRosterManageList);
@@ -874,27 +932,64 @@ function presentCount(dateKey){
   return Object.values(rec).filter(v=>v===true).length;
 }
 
-function renderAttendanceSummary(){
-  const dates = attendanceDates();
-  const pctEl = document.getElementById('attBigPct');
-  const subEl = document.getElementById('attBigSub');
-  if(dates.length===0 || data.roster.length===0){
-    pctEl.textContent = '–';
-    subEl.textContent = data.roster.length===0 ? 'add your roster to get started' : 'no attendance logged yet';
-    return;
-  }
-  const last = dates[dates.length-1];
-  const present = presentCount(last);
-  const pct = Math.round((present/data.roster.length)*100);
-  pctEl.textContent = pct + '%';
-  subEl.textContent = present + ' of ' + data.roster.length + ' present · ' + formatSessionLabel(last, {month:'short', day:'numeric'});
+function dailyAttendancePercent(dateStr){
+  if(data.roster.length===0) return null;
+  const sessionsForDay = attendanceDates().filter(k=>keyDate(k)===dateStr);
+  if(sessionsForDay.length===0) return null;
+  let presentSum = 0, totalSum = 0;
+  sessionsForDay.forEach(k=>{
+    presentSum += presentCount(k);
+    totalSum += data.roster.length;
+  });
+  return totalSum>0 ? Math.round((presentSum/totalSum)*100) : null;
+}
+
+function attendanceWeeksPresent(){
+  const weeks = new Set();
+  attendanceDates().forEach(k=>weeks.add(weekStartKeyForDate(keyDate(k))));
+  weeks.add(startOfWeek(new Date()).toISOString().slice(0,10)); // always offer the current week
+  return Array.from(weeks).sort().reverse();
+}
+
+function renderAttendanceWeekFilterOptions(){
+  const sel = document.getElementById('attendanceWeekFilter');
+  if(!sel) return;
+  const current = sel.value;
+  const weeks = attendanceWeeksPresent();
+  const currentWeekKey = startOfWeek(new Date()).toISOString().slice(0,10);
+  sel.innerHTML = weeks.map(w=>{
+    const label = (w===currentWeekKey ? 'This week — ' : 'Week of ') + formatMonSatRangeLabel(w);
+    return '<option value="'+w+'">'+escapeHtml(label)+'</option>';
+  }).join('');
+  sel.value = weeks.includes(current) ? current : currentWeekKey;
+}
+
+function formatMonSatRangeLabel(weekStartKey){
+  const start = new Date(weekStartKey+'T00:00:00');
+  const end = new Date(start);
+  end.setDate(end.getDate()+5); // Saturday
+  const startStr = start.toLocaleDateString(undefined, {month:'short', day:'numeric'});
+  const endStr = end.toLocaleDateString(undefined, {month:'short', day:'numeric'});
+  return startStr+' – '+endStr;
 }
 
 function renderAttendanceChart(){
+  renderAttendanceWeekFilterOptions();
   const ctx = document.getElementById('attendanceChart');
-  const dates = attendanceDates().slice(-14);
-  const labels = dates.map(d=>formatSessionLabel(d, {month:'short', day:'numeric'}));
-  const pcts = dates.map(d => data.roster.length ? Math.round((presentCount(d)/data.roster.length)*100) : 0);
+  const weekSel = document.getElementById('attendanceWeekFilter');
+  const weekKey = (weekSel && weekSel.value) || startOfWeek(new Date()).toISOString().slice(0,10);
+  const dayNames = ['Mon','Tue','Wed','Thu','Fri','Sat'];
+  const start = new Date(weekKey+'T00:00:00');
+  const labels = [];
+  const pcts = [];
+  for(let i=0;i<6;i++){
+    const d = new Date(start);
+    d.setDate(d.getDate()+i);
+    const dateStr = d.toISOString().slice(0,10);
+    labels.push(dayNames[i]+' '+d.toLocaleDateString(undefined,{month:'numeric', day:'numeric'}));
+    const pct = dailyAttendancePercent(dateStr);
+    pcts.push(pct===null ? 0 : pct);
+  }
   if(chart) chart.destroy();
   chart = new Chart(ctx, {
     type:'bar',
@@ -948,7 +1043,7 @@ async function deleteAttendanceEntry(key){
   delete data.attendance[key];
   if(data.practiceType) delete data.practiceType[key];
   await saveData();
-  renderAttendanceSummary(); renderAttendanceChart(); renderAttendanceHistory(); renderJarsSafely();
+  renderAttendanceChart(); renderAttendanceHistory(); renderJarsSafely();
 }
 
 /* ---- Roster management ---- */
@@ -971,7 +1066,7 @@ async function addSwimmer(){
   data.roster.push({id: 'sw_'+Date.now()+'_'+Math.floor(Math.random()*1000), name});
   document.getElementById('newSwimmerName').value='';
   await saveData();
-  renderRosterManageList(); renderRosterEntryList(); renderAttendanceSummary(); renderJarsSafely(); renderShoutouts();
+  renderRosterManageList(); renderRosterEntryList(); renderJarsSafely(); renderShoutouts();
 }
 
 async function bulkAddRoster(){
@@ -983,13 +1078,13 @@ async function bulkAddRoster(){
   });
   document.getElementById('bulkRoster').value='';
   await saveData();
-  renderRosterManageList(); renderRosterEntryList(); renderAttendanceSummary(); renderJarsSafely(); renderShoutouts();
+  renderRosterManageList(); renderRosterEntryList(); renderJarsSafely(); renderShoutouts();
 }
 
 async function deleteSwimmer(id){
   data.roster = data.roster.filter(s=>s.id!==id);
   await saveData();
-  renderRosterManageList(); renderRosterEntryList(); renderAttendanceSummary(); renderAttendanceChart(); renderAttendanceHistory(); renderJarsSafely(); renderShoutouts();
+  renderRosterManageList(); renderRosterEntryList(); renderAttendanceChart(); renderAttendanceHistory(); renderJarsSafely(); renderShoutouts();
 }
 
 /* ---- Attendance entry (tap yes/no) ---- */
@@ -1116,35 +1211,75 @@ async function saveAttendanceNow(){
       statusEl.onclick = () => saveAttendanceNow();
     }
   }
-  renderAttendanceSummary(); renderAttendanceChart(); renderAttendanceHistory();
+  renderAttendanceChart(); renderAttendanceHistory();
   renderJarsSafely();
   return ok;
 }
 
+function shoutoutWeeksPresent(){
+  const weeks = new Set();
+  data.shoutouts.forEach(s=>{
+    if(s.date) weeks.add(weekStartKeyForDate(s.date));
+  });
+  return Array.from(weeks).sort().reverse();
+}
+
+function formatWeekRangeLabel(weekStartKey){
+  const start = new Date(weekStartKey+'T00:00:00');
+  const end = new Date(start);
+  end.setDate(end.getDate()+6);
+  const startStr = start.toLocaleDateString(undefined, {month:'short', day:'numeric'});
+  const endStr = end.toLocaleDateString(undefined, {month:'short', day:'numeric'});
+  return 'Week of '+startStr+' – '+endStr;
+}
+
+function renderShoutoutWeekFilterOptions(){
+  const sel = document.getElementById('shoutoutWeekFilter');
+  if(!sel) return;
+  const current = sel.value;
+  const weeks = shoutoutWeeksPresent();
+  sel.innerHTML = '<option value="">All weeks</option>' +
+    weeks.map(w=>'<option value="'+w+'">'+escapeHtml(formatWeekRangeLabel(w))+'</option>').join('');
+  sel.value = current;
+}
+
+const STICKY_COLORS = ['sticky-yellow','sticky-pink','sticky-blue','sticky-green','sticky-orange'];
+
 function renderShoutouts(){
+  renderShoutoutWeekFilterOptions();
   const grid = document.getElementById('shoutoutGrid');
-  const filterVal = getTeamFilterValue();
+  const personFilter = getTeamFilterValue();
+  const weekSel = document.getElementById('shoutoutWeekFilter');
+  const weekFilter = weekSel ? weekSel.value : '';
   if(data.shoutouts.length===0){
     grid.innerHTML = '<div class="empty-state">No shoutouts yet. Import from GroupMe or add one manually.</div>';
     return;
   }
   const filtered = data.shoutouts
     .map((s,i)=>({s,i}))
-    .filter(({s}) => !filterVal || (s.recipients||[]).includes(filterVal) || (s.recipients||[]).includes('Everyone'));
+    .filter(({s}) => {
+      const matchesPerson = !personFilter || (s.recipients||[]).includes(personFilter) || (s.recipients||[]).includes('Everyone');
+      const matchesWeek = !weekFilter || (s.date && weekStartKeyForDate(s.date)===weekFilter);
+      return matchesPerson && matchesWeek;
+    });
   if(filtered.length===0){
-    grid.innerHTML = '<div class="empty-state">No shoutouts for '+escapeHtml(filterVal)+' yet.</div>';
+    grid.innerHTML = '<div class="empty-state">No shoutouts match this filter.</div>';
     return;
   }
-  grid.innerHTML = filtered.map(({s,i})=>{
+  grid.innerHTML = filtered.map(({s,i}, idx)=>{
+    const colorClass = STICKY_COLORS[idx % STICKY_COLORS.length];
+    const rotClass = 'rot'+(idx % 5);
     const recipients = s.recipients && s.recipients.length
-      ? '<div class="shoutout-recipients">🎉 For: '+escapeHtml(s.recipients.join(', '))+'</div>' : '';
-    return '<div class="shoutout-card">' +
-      (editMode ? '<button class="del-btn" style="visibility:visible;" onclick="deleteShoutout('+i+')">✕</button>' : '') +
-      '<div class="name">'+escapeHtml(s.name)+'</div>' +
-      '<div class="text">'+escapeHtml(s.text)+'</div>' +
-      recipients +
-      '<div class="date">'+escapeHtml(s.date||'')+'</div>' +
-      '</div>';
+      ? '<div class="sticky-recipients">→ '+escapeHtml(s.recipients.join(', '))+'</div>' : '';
+    return '<div class="sticky-star '+colorClass+' '+rotClass+'">' +
+      (editMode ? '<button class="del-btn sticky-del" onclick="deleteShoutout('+i+')">✕</button>' : '') +
+      '<div class="sticky-content">' +
+        '<div class="sticky-name">'+escapeHtml(s.name)+'</div>' +
+        '<div class="sticky-text">'+escapeHtml(s.text)+'</div>' +
+        recipients +
+        '<div class="sticky-date">'+escapeHtml(s.date||'')+'</div>' +
+      '</div>' +
+    '</div>';
   }).join('');
 }
 
@@ -1739,7 +1874,7 @@ setInterval(async ()=>{
   if(lastSaveFailed){
     const ok = await saveData();
     if(ok){
-      renderAttendanceSummary(); renderAttendanceChart(); renderAttendanceHistory(); renderJarsSafely();
+      renderAttendanceChart(); renderAttendanceHistory(); renderJarsSafely();
       const statusEl = document.getElementById('attSaveStatus');
       if(statusEl){ statusEl.textContent = 'Saved ✓'; statusEl.onclick = null; statusEl.style.cursor = 'default'; }
     }
