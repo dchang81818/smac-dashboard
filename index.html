@@ -947,21 +947,23 @@ function dailyAttendancePercent(dateStr){
 function attendanceWeeksPresent(){
   const weeks = new Set();
   attendanceDates().forEach(k=>weeks.add(weekStartKeyForDate(keyDate(k))));
-  weeks.add(startOfWeek(new Date()).toISOString().slice(0,10)); // always offer the current week
-  return Array.from(weeks).sort().reverse();
+  return Array.from(weeks).sort().reverse(); // weeks with actual logged attendance, most recent first
 }
 
 function renderAttendanceWeekFilterOptions(){
   const sel = document.getElementById('attendanceWeekFilter');
   if(!sel) return;
   const current = sel.value;
-  const weeks = attendanceWeeksPresent();
   const currentWeekKey = startOfWeek(new Date()).toISOString().slice(0,10);
+  const dataWeeks = attendanceWeeksPresent();
+  const weeks = dataWeeks.includes(currentWeekKey) ? dataWeeks : [currentWeekKey, ...dataWeeks];
   sel.innerHTML = weeks.map(w=>{
     const label = (w===currentWeekKey ? 'This week — ' : 'Week of ') + formatMonSatRangeLabel(w);
     return '<option value="'+w+'">'+escapeHtml(label)+'</option>';
   }).join('');
-  sel.value = weeks.includes(current) ? current : currentWeekKey;
+  // default to the most recent week that actually has attendance, not blindly "this week"
+  const defaultWeek = dataWeeks.length ? dataWeeks[0] : currentWeekKey;
+  sel.value = weeks.includes(current) ? current : defaultWeek;
 }
 
 function formatMonSatRangeLabel(weekStartKey){
