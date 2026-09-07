@@ -517,7 +517,11 @@
       <div class="form-row">
         <textarea id="bulkRoster" placeholder="Jane Smith&#10;John Doe&#10;..." rows="3"></textarea>
       </div>
-      <button class="btn secondary" onclick="bulkAddRoster()">Add all names</button>
+      <button class="btn secondary" onclick="parseBulkRoster()">Parse pasted names</button>
+      <button class="btn secondary" id="selectAllRosterBtn" style="display:none;" onclick="toggleSelectAllRoster()">Select all</button>
+      <div id="rosterImportList" class="import-list" style="display:none;"></div>
+      <button class="btn" id="addSelectedRosterBtn" style="display:none;" onclick="addSelectedRosterNames()">Add selected</button>
+      <div id="rosterImportStatus" class="status-msg"></div>
     </div>
   </section>
 
@@ -1122,16 +1126,62 @@ async function addSwimmer(){
   renderRosterManageList(); renderRosterEntryList(); renderJarsSafely(); renderShoutouts();
 }
 
-async function bulkAddRoster(){
+let pendingRosterNames = [];
+
+function parseBulkRoster(){
   const raw = document.getElementById('bulkRoster').value;
-  const names = raw.split('\\n').map(n=>n.trim()).filter(Boolean);
-  if(names.length===0) return;
-  names.forEach(name=>{
-    data.roster.push({id: 'sw_'+Date.now()+'_'+Math.floor(Math.random()*100000), name});
+  const statusEl = document.getElementById('rosterImportStatus');
+  statusEl.textContent = '';
+  statusEl.className = 'status-msg';
+  const names = raw.split(/\r?\n/).map(n=>n.trim()).filter(Boolean);
+  pendingRosterNames = names;
+  const listEl = document.getElementById('rosterImportList');
+  const addBtn = document.getElementById('addSelectedRosterBtn');
+  const selectAllBtn = document.getElementById('selectAllRosterBtn');
+  if(names.length===0){
+    statusEl.textContent = 'Paste some names first, one per line.';
+    statusEl.className = 'status-msg err';
+    listEl.style.display = 'none';
+    addBtn.style.display = 'none';
+    selectAllBtn.style.display = 'none';
+    return;
+  }
+  listEl.innerHTML = names.map((name,i)=>
+    '<label class="import-row"><input type="checkbox" data-idx="'+i+'" class="roster-import-check" checked> ' +
+    '<span>'+escapeHtml(name)+'</span></label>'
+  ).join('');
+  listEl.style.display = 'block';
+  addBtn.style.display = 'inline-block';
+  selectAllBtn.style.display = 'inline-block';
+  selectAllBtn.textContent = 'Deselect all';
+  statusEl.textContent = names.length + ' name' + (names.length===1?'':'s') + ' found. Uncheck any you don\'t want, then Add selected.';
+  statusEl.className = 'status-msg ok';
+}
+
+function toggleSelectAllRoster(){
+  const checks = document.querySelectorAll('.roster-import-check');
+  if(checks.length===0) return;
+  const allChecked = [...checks].every(c=>c.checked);
+  checks.forEach(c=>{ c.checked = !allChecked; });
+  document.getElementById('selectAllRosterBtn').textContent = allChecked ? 'Select all' : 'Deselect all';
+}
+
+async function addSelectedRosterNames(){
+  const checks = document.querySelectorAll('.roster-import-check:checked');
+  if(checks.length===0) return;
+  checks.forEach(c=>{
+    const idx = Number(c.getAttribute('data-idx'));
+    const name = pendingRosterNames[idx];
+    if(name) data.roster.push({id: 'sw_'+Date.now()+'_'+idx+'_'+Math.floor(Math.random()*100000), name});
   });
-  document.getElementById('bulkRoster').value='';
   await saveData();
   renderRosterManageList(); renderRosterEntryList(); renderJarsSafely(); renderShoutouts();
+  document.getElementById('rosterImportStatus').textContent = checks.length + ' name' + (checks.length===1?'':'s') + ' added.';
+  document.getElementById('rosterImportStatus').className = 'status-msg ok';
+  document.getElementById('rosterImportList').style.display = 'none';
+  document.getElementById('addSelectedRosterBtn').style.display = 'none';
+  document.getElementById('selectAllRosterBtn').style.display = 'none';
+  document.getElementById('bulkRoster').value = '';
 }
 
 async function deleteSwimmer(id){
