@@ -252,9 +252,9 @@
   .jar-body .ridge.r1{top:14%;} .jar-body .ridge.r2{top:20%;}
   .beads-fill{
     position:absolute; bottom:0; left:0; right:0; padding:3px;
-    display:flex; flex-wrap:wrap-reverse; align-content:flex-start; gap:0.75px; max-height:100%; overflow:hidden;
+    display:flex; flex-wrap:wrap-reverse; align-content:flex-start; gap:1.5px; max-height:100%; overflow:hidden;
   }
-  .bead{width:3px; height:3px; border-radius:50%; flex:0 0 auto; box-shadow: inset -0.5px -0.5px 1px rgba(0,0,0,.25), inset 0.25px 0.25px 0.5px rgba(255,255,255,.5);}
+  .bead{width:5px; height:5px; border-radius:50%; flex:0 0 auto; box-shadow: inset -0.8px -0.8px 1.5px rgba(0,0,0,.25), inset 0.4px 0.4px 0.8px rgba(255,255,255,.5);}
   .bead-aerobic{background:#E23B3B;}
   .bead-threshold{background:#2C6FBB;}
   .bead-anaerobic{background:#8B5FBF;}
@@ -591,7 +591,9 @@ const urlParams = new URLSearchParams(window.location.search);
 const groupId = urlParams.get('group') || 'national';
 const GROUP_TEAM_NAMES = {
   'national': 'SMAC Confidence Board: National',
-  'msc-age-group': 'SMAC Confidence Board: MSC Age Group'
+  'msc-age-group': 'SMAC Confidence Board: MSC Age Group',
+  'viewridge-agp': 'SMAC Confidence Board: Viewridge AGP',
+  'senior-central': 'SMAC Confidence Board: Senior Central'
 };
 const GROUP_DRIVE_LINKS = {
   'national': 'https://drive.google.com/drive/folders/1cwrTdXJZfEQMAbrMGIaBN4MOtIaFNH11?usp=sharing'
