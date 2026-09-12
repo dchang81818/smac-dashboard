@@ -215,7 +215,13 @@
   .yn-btn.active-no{background:var(--flag); border-color:var(--flag); color:#fff;}
   .roster-empty{font-family:'IBM Plex Mono',monospace; font-size:13px; color:var(--lane); padding:16px 4px;}
   .roster-manage-list{max-height:220px; overflow-y:auto; margin-bottom:10px;}
-  .roster-manage-row{display:flex; align-items:center; justify-content:space-between; padding:6px 4px; border-bottom:1px solid #F0F5F5; font-size:13.5px;}
+  .roster-manage-row{display:flex; align-items:center; justify-content:space-between; padding:6px 4px; border-bottom:1px solid #F0F5F5; font-size:13.5px; gap:8px;}
+  .roster-name-input{
+    flex:1; font-family:'Inter',sans-serif; font-size:13.5px; padding:5px 8px;
+    border:1px solid transparent; border-radius:5px; background:transparent; color:var(--ink);
+  }
+  .roster-name-input:hover{ border-color:#DCE9E9; background:#fff; }
+  .roster-name-input:focus{ border-color:var(--lane); background:#fff; outline:none; }
 
   /* CONFIDENCE JARS */
   .jar-controls{margin-bottom:16px;}
@@ -1111,10 +1117,24 @@ function renderRosterManageList(){
     el.innerHTML = '<div class="roster-empty">No swimmers yet — add names below.</div>';
     return;
   }
-  el.innerHTML = data.roster.map(s=>
-    '<div class="roster-manage-row"><span>'+escapeHtml(s.name)+'</span>' +
+  el.innerHTML = sortedRoster().map(s=>
+    '<div class="roster-manage-row">' +
+    '<input type="text" class="roster-name-input" value="'+escapeHtml(s.name)+'" onchange="renameSwimmer(\''+s.id+'\', this.value)">' +
     '<button class="del-btn" style="visibility:visible;" onclick="deleteSwimmer(\''+s.id+'\')">✕</button></div>'
   ).join('');
+}
+
+async function renameSwimmer(id, newName){
+  const trimmed = newName.trim();
+  const swimmer = data.roster.find(s=>s.id===id);
+  if(!swimmer) return;
+  if(!trimmed){
+    renderRosterManageList(); // revert visually to the existing name, don't save an empty one
+    return;
+  }
+  swimmer.name = trimmed;
+  await saveData();
+  renderRosterManageList(); renderRosterEntryList(); renderJarsSafely(); renderShoutouts();
 }
 
 async function addSwimmer(){
@@ -1252,7 +1272,7 @@ function renderRosterEntryList(){
     return;
   }
   const rec = data.attendance[dateKey] || {};
-  list.innerHTML = data.roster.map(s=>{
+  list.innerHTML = sortedRoster().map(s=>{
     const val = rec[s.id];
     return '<div class="roster-row"><span class="swim-name">'+escapeHtml(s.name)+'</span>' +
       '<div class="yn-toggle">' +
@@ -1397,7 +1417,7 @@ function renderTeamFilterOptions(){
   if(!sel) return;
   const current = sel.value;
   sel.innerHTML = '<option value="">Show whole team</option>' +
-    data.roster.map(s=>'<option value="'+escapeHtml(s.name)+'">'+escapeHtml(s.name)+'</option>').join('');
+    sortedRoster().map(s=>'<option value="'+escapeHtml(s.name)+'">'+escapeHtml(s.name)+'</option>').join('');
   sel.value = current;
 }
 
@@ -1405,6 +1425,15 @@ function applyTeamFilter(){
   renderConfidenceJars();
   renderShoutouts();
   renderReminderSetsList();
+}
+
+function lastNameOf(fullName){
+  const parts = String(fullName || '').trim().split(/\s+/);
+  return parts.length ? parts[parts.length - 1].toLowerCase() : '';
+}
+
+function sortedRoster(){
+  return data.roster.slice().sort((a, b) => lastNameOf(a.name).localeCompare(lastNameOf(b.name)));
 }
 
 function escapeHtml(str){
@@ -1446,7 +1475,7 @@ function renderConfidenceJars(){
   if(!grid) return;
   renderTeamFilterOptions();
   const filterVal = getTeamFilterValue();
-  const roster = filterVal ? data.roster.filter(s=>s.name===filterVal) : data.roster;
+  const roster = filterVal ? data.roster.filter(s=>s.name===filterVal) : sortedRoster();
   if(data.roster.length===0){
     grid.innerHTML = '<div class="empty-state">Add your roster in "Take Attendance" to see jars here.</div>';
   }else if(roster.length===0){
@@ -1510,7 +1539,7 @@ function thisWeekSessionKeys(){
 function openReminderModal(){
   const sessions = thisWeekSessionKeys();
   const currentFilter = getTeamFilterValue();
-  const swimmerOptions = data.roster.map(s=>
+  const swimmerOptions = sortedRoster().map(s=>
     '<option value="'+s.id+'"'+(s.name===currentFilter?' selected':'')+'>'+escapeHtml(s.name)+'</option>'
   ).join('');
   const sessionOptions = sessions.length
