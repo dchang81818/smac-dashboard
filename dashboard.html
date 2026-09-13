@@ -432,6 +432,17 @@
       </div>
       <button class="btn secondary" onclick="addManualShoutout()">Add shoutout</button>
 
+      <h3 style="margin-top:20px;">Manage nicknames</h3>
+      <p class="hint">If shoutouts mention a nickname (like "Andy" for "Stuart (Andrew) Deng") or a last name that isn't matching correctly, add it here.</p>
+      <div id="nicknameManageList"></div>
+      <div class="form-row">
+        <input id="newNicknameText" placeholder="Nickname (e.g. Andy)">
+        <select id="newNicknameSwimmer">
+          <option value="">Select swimmer…</option>
+        </select>
+        <button class="btn secondary" onclick="addNickname()">Add</button>
+      </div>
+
       <h3 style="margin-top:20px;">Danger zone</h3>
       <button class="btn secondary" id="clearAllShoutoutsBtn" onclick="clearAllShoutouts()" style="color:var(--flag); border-color:var(--flag);">Clear all shoutouts</button>
     </div>
@@ -678,7 +689,8 @@ const DEFAULTS = {
   practiceType: {},
   confidenceReminders: {},
   weeklyDocLinks: {},
-  practiceSets: {}
+  practiceSets: {},
+  nicknames: {}
 };
 
 async function loadData(){
@@ -712,6 +724,7 @@ async function loadData(){
   if(!data.confidenceReminders) data.confidenceReminders = {};
   if(!data.weeklyDocLinks) data.weeklyDocLinks = {};
   if(!data.practiceSets) data.practiceSets = {};
+  if(!data.nicknames) data.nicknames = {};
   if(!data.shoutouts) data.shoutouts = [];
   render();
 }
@@ -829,6 +842,9 @@ async function confirmImportData(){
   data.practiceType = p.practiceType || {};
   data.shoutouts = p.shoutouts || [];
   data.confidenceReminders = p.confidenceReminders || {};
+  data.weeklyDocLinks = p.weeklyDocLinks || {};
+  data.practiceSets = p.practiceSets || {};
+  data.nicknames = p.nicknames || {};
   if(errEl){ errEl.className = 'status-msg'; errEl.style.color = ''; errEl.textContent = 'Saving to database…'; }
   const ok = await saveData();
   if(ok){
@@ -901,6 +917,8 @@ function render(){
   safeRender('renderAttendanceHistory', renderAttendanceHistory);
   safeRender('renderRosterManageList', renderRosterManageList);
   safeRender('renderRosterEntryList', renderRosterEntryList);
+  safeRender('renderNicknameManageList', renderNicknameManageList);
+  safeRender('renderNicknameSwimmerOptions', renderNicknameSwimmerOptions);
   renderJarsSafely();
   safeRender('renderShoutouts', renderShoutouts);
   safeRender('renderReminderSetsList', renderReminderSetsList);
@@ -1134,7 +1152,7 @@ async function renameSwimmer(id, newName){
   }
   swimmer.name = trimmed;
   await saveData();
-  renderRosterManageList(); renderRosterEntryList(); renderJarsSafely(); renderShoutouts();
+  renderRosterManageList(); renderRosterEntryList(); renderJarsSafely(); renderShoutouts(); renderNicknameSwimmerOptions();
 }
 
 async function addSwimmer(){
@@ -1143,7 +1161,7 @@ async function addSwimmer(){
   data.roster.push({id: 'sw_'+Date.now()+'_'+Math.floor(Math.random()*1000), name});
   document.getElementById('newSwimmerName').value='';
   await saveData();
-  renderRosterManageList(); renderRosterEntryList(); renderJarsSafely(); renderShoutouts();
+  renderRosterManageList(); renderRosterEntryList(); renderJarsSafely(); renderShoutouts(); renderNicknameSwimmerOptions();
 }
 
 let pendingRosterNames = [];
@@ -1195,7 +1213,7 @@ async function addSelectedRosterNames(){
     if(name) data.roster.push({id: 'sw_'+Date.now()+'_'+idx+'_'+Math.floor(Math.random()*100000), name});
   });
   await saveData();
-  renderRosterManageList(); renderRosterEntryList(); renderJarsSafely(); renderShoutouts();
+  renderRosterManageList(); renderRosterEntryList(); renderJarsSafely(); renderShoutouts(); renderNicknameSwimmerOptions();
   document.getElementById('rosterImportStatus').textContent = checks.length + ' name' + (checks.length===1?'':'s') + ' added.';
   document.getElementById('rosterImportStatus').className = 'status-msg ok';
   document.getElementById('rosterImportList').style.display = 'none';
@@ -1207,7 +1225,7 @@ async function addSelectedRosterNames(){
 async function deleteSwimmer(id){
   data.roster = data.roster.filter(s=>s.id!==id);
   await saveData();
-  renderRosterManageList(); renderRosterEntryList(); renderAttendanceChartSafely(); renderAttendanceHistory(); renderJarsSafely(); renderShoutouts();
+  renderRosterManageList(); renderRosterEntryList(); renderAttendanceChartSafely(); renderAttendanceHistory(); renderJarsSafely(); renderShoutouts(); renderNicknameSwimmerOptions();
 }
 
 /* ---- Attendance entry (tap yes/no) ---- */
@@ -1723,6 +1741,50 @@ async function deleteShoutout(i){
 let clearAllShoutoutsArmed = false;
 let clearAllShoutoutsTimer = null;
 
+function renderNicknameManageList(){
+  const el = document.getElementById('nicknameManageList');
+  if(!el) return;
+  const entries = Object.entries(data.nicknames || {});
+  if(entries.length===0){
+    el.innerHTML = '<div class="roster-empty">No nicknames added yet.</div>';
+    return;
+  }
+  el.innerHTML = entries.map(([nick, fullName])=>
+    '<div class="roster-manage-row"><span>'+escapeHtml(nick)+' → '+escapeHtml(fullName)+'</span>' +
+    '<button class="del-btn" style="visibility:visible;" onclick="deleteNickname(\''+encodeURIComponent(nick)+'\')">✕</button></div>'
+  ).join('');
+}
+
+function renderNicknameSwimmerOptions(){
+  const sel = document.getElementById('newNicknameSwimmer');
+  if(!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">Select swimmer…</option>' +
+    sortedRoster().map(s=>'<option value="'+escapeHtml(s.name)+'">'+escapeHtml(s.name)+'</option>').join('');
+  sel.value = current;
+}
+
+async function addNickname(){
+  const nickInput = document.getElementById('newNicknameText');
+  const swimmerSel = document.getElementById('newNicknameSwimmer');
+  const nick = nickInput.value.trim().toLowerCase();
+  const swimmerName = swimmerSel.value;
+  if(!nick || !swimmerName) return;
+  if(!data.nicknames) data.nicknames = {};
+  data.nicknames[nick] = swimmerName;
+  nickInput.value = '';
+  swimmerSel.value = '';
+  await saveData();
+  renderNicknameManageList();
+}
+
+async function deleteNickname(encodedNick){
+  const nick = decodeURIComponent(encodedNick);
+  if(data.nicknames) delete data.nicknames[nick];
+  await saveData();
+  renderNicknameManageList();
+}
+
 async function clearAllShoutouts(){
   const btn = document.getElementById('clearAllShoutoutsBtn');
   if(!clearAllShoutoutsArmed){
@@ -1758,18 +1820,33 @@ function isReplyPreviewLine(line){
   return /^[A-Z][a-z]+ [A-Z][a-z]+Shout[\s-]?outs?\b/.test(line);
 }
 
-function rosterFirstNameMap(){
-  const map = {};
+function rosterNameMaps(){
+  const firstCounts = {}, lastCounts = {};
   data.roster.forEach(s=>{
-    const first = s.name.split(' ')[0].replace(/[()]/g,'').toLowerCase();
-    if(first && !map[first]) map[first] = s.name;
+    const parts = String(s.name||'').replace(/[()]/g,'').trim().split(/\s+/);
+    if(!parts.length) return;
+    const first = parts[0].toLowerCase(), last = parts[parts.length-1].toLowerCase();
+    firstCounts[first] = (firstCounts[first]||0)+1;
+    lastCounts[last] = (lastCounts[last]||0)+1;
   });
-  return map;
+  const firstMap = {}, lastMap = {};
+  data.roster.forEach(s=>{
+    const parts = String(s.name||'').replace(/[()]/g,'').trim().split(/\s+/);
+    if(!parts.length) return;
+    const first = parts[0].toLowerCase(), last = parts[parts.length-1].toLowerCase();
+    // only map names that are unique — an ambiguous last/first name is left unmatched
+    // rather than silently guessing the wrong person
+    if(firstCounts[first]===1) firstMap[first] = s.name;
+    if(lastCounts[last]===1) lastMap[last] = s.name;
+  });
+  return { firstMap, lastMap };
 }
 
 function matchRosterFullName(token){
-  const first = token.trim().split(/\s+/)[0].toLowerCase();
-  return rosterFirstNameMap()[first] || null;
+  const key = token.trim().split(/\s+/)[0].toLowerCase();
+  if(data.nicknames && data.nicknames[key]) return data.nicknames[key];
+  const { firstMap, lastMap } = rosterNameMaps();
+  return firstMap[key] || lastMap[key] || null;
 }
 
 function normalizeSenderName(rawName){
