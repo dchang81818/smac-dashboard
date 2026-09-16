@@ -693,16 +693,18 @@ const DEFAULTS = {
   nicknames: {}
 };
 
+let dataLoadedSuccessfully = false;
+
 async function loadData(){
   try{
     const docSnap = await dashboardDocRef().get();
     data = (docSnap.exists && docSnap.data().json) ? JSON.parse(docSnap.data().json) : structuredClone(DEFAULTS);
+    dataLoadedSuccessfully = true; // covers both "found existing data" and "confirmed genuinely new/empty group"
   }catch(e){
     data = structuredClone(DEFAULTS);
-    if(!firebaseReady){
-      const footer = document.getElementById('lastUpdated');
-      if(footer) footer.textContent = "⚠ Couldn't connect to the database — showing blank/default data. Try reloading the page.";
-    }
+    dataLoadedSuccessfully = false;
+    const footer = document.getElementById('lastUpdated');
+    if(footer) footer.textContent = "⚠ Couldn't load this group's data (" + (e && e.message ? e.message : String(e)) + ") — reload the page before making any changes. Nothing will save until this is fixed.";
   }
   if(!data.config) data.config = structuredClone(DEFAULTS.config);
   if(data.config.teamName === 'SMAC National Group Shoutout Board' ||
@@ -859,6 +861,12 @@ async function confirmImportData(){
 }
 
 async function saveData(){
+  if(!dataLoadedSuccessfully){
+    const footer = document.getElementById('lastUpdated');
+    if(footer) footer.textContent = "⚠ Save blocked — this page never successfully loaded the real data, so saving now could overwrite it. Reload the page and try again.";
+    lastSaveFailed = true;
+    return false;
+  }
   const maxAttempts = 3;
   let lastError = null;
   for(let attempt=1; attempt<=maxAttempts; attempt++){
