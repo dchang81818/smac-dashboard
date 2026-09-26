@@ -168,6 +168,13 @@
     display:-webkit-box; -webkit-line-clamp:5; -webkit-box-orient:vertical; overflow:hidden;
   }
   .sticky-recipients{font-family:'Baloo 2',cursive; font-weight:500; font-size:10px; color:#5A4020; margin-top:5px;}
+  .sticky-recipients-input{
+    width:100%; box-sizing:border-box; font-family:'Baloo 2',cursive; font-weight:500; font-size:10.5px;
+    color:#5A4020; margin-top:5px; text-align:center; padding:4px 6px; border-radius:5px;
+    border:1px dashed rgba(90,64,32,.5); background:rgba(255,255,255,.55);
+  }
+  .sticky-recipients-input:hover{ background:rgba(255,255,255,.8); }
+  .sticky-recipients-input:focus{ background:#fff; outline:none; border-color:#5A4020; }
   .sticky-date{font-family:'IBM Plex Mono',monospace; font-size:8px; color:#6A5030; margin-top:5px;}
   .sticky-del{
     position:absolute; top:6px; right:6px; z-index:3; visibility:visible !important;
@@ -399,7 +406,7 @@
     <h2>Shoutouts</h2>
     <p class="section-sub">Send a shoutout to list it on the board! Include a person's name (just first name is fine), or say "everyone" to give everyone a shoutout!</p>
     <div class="jar-controls">
-      <select id="shoutoutWeekFilter" onchange="renderShoutouts()">
+      <select id="shoutoutWeekFilter" onchange="onShoutoutWeekFilterChange()">
         <option value="">All weeks</option>
       </select>
     </div>
@@ -1382,6 +1389,12 @@ function formatWeekRangeLabel(weekStartKey){
   return 'Week of '+startStr+' – '+endStr;
 }
 
+let shoutoutWeekFilterUserSet = false;
+function onShoutoutWeekFilterChange(){
+  shoutoutWeekFilterUserSet = true;
+  renderShoutouts();
+}
+
 function renderShoutoutWeekFilterOptions(){
   const sel = document.getElementById('shoutoutWeekFilter');
   if(!sel) return;
@@ -1389,7 +1402,13 @@ function renderShoutoutWeekFilterOptions(){
   const weeks = shoutoutWeeksPresent();
   sel.innerHTML = '<option value="">All weeks</option>' +
     weeks.map(w=>'<option value="'+w+'">'+escapeHtml(formatWeekRangeLabel(w))+'</option>').join('');
-  sel.value = current;
+  if(!shoutoutWeekFilterUserSet && !current){
+    // Default to the current week (if it has any shoutouts yet) instead of "All weeks".
+    const thisWeek = currentWeekStartKey();
+    sel.value = weeks.includes(thisWeek) ? thisWeek : '';
+  }else{
+    sel.value = current;
+  }
 }
 
 const STICKY_COLORS = ['sticky-yellow','sticky-pink','sticky-blue','sticky-green','sticky-orange'];
@@ -1418,8 +1437,10 @@ function renderShoutouts(){
   grid.innerHTML = filtered.map(({s,i}, idx)=>{
     const colorClass = STICKY_COLORS[idx % STICKY_COLORS.length];
     const rotClass = 'rot'+(idx % 5);
-    const recipients = s.recipients && s.recipients.length
-      ? '<div class="sticky-recipients">→ '+escapeHtml(s.recipients.join(', '))+'</div>' : '';
+    const recipientsText = (s.recipients||[]).join(', ');
+    const recipients = editMode
+      ? '<input type="text" class="sticky-recipients-input" value="'+escapeHtml(recipientsText)+'" placeholder="Recipients (names, or Everyone)" onchange="updateShoutoutRecipients('+i+', this.value)">'
+      : (recipientsText ? '<div class="sticky-recipients">→ '+escapeHtml(recipientsText)+'</div>' : '');
     return '<div class="sticky-star '+colorClass+' '+rotClass+'">' +
       (editMode ? '<button class="del-btn sticky-del" onclick="deleteShoutout('+i+')">✕</button>' : '') +
       '<div class="sticky-content">' +
@@ -1430,6 +1451,15 @@ function renderShoutouts(){
       '</div>' +
     '</div>';
   }).join('');
+}
+
+async function updateShoutoutRecipients(i, value){
+  const shoutout = data.shoutouts[i];
+  if(!shoutout) return;
+  const parts = value.split(',').map(p=>p.trim()).filter(Boolean);
+  shoutout.recipients = parts;
+  await saveData();
+  renderShoutouts();
 }
 
 /* ---- Unified team filter (drives both Confidence Jars and Shoutouts) ---- */
