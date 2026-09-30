@@ -1403,9 +1403,11 @@ function renderShoutoutWeekFilterOptions(){
   sel.innerHTML = '<option value="">All weeks</option>' +
     weeks.map(w=>'<option value="'+w+'">'+escapeHtml(formatWeekRangeLabel(w))+'</option>').join('');
   if(!shoutoutWeekFilterUserSet && !current){
-    // Default to the current week (if it has any shoutouts yet) instead of "All weeks".
+    // Default to the most recent week that actually has shoutouts: the current week if
+    // one's been sent already, otherwise the latest past week with any (weeks[0], since
+    // shoutoutWeeksPresent() is sorted newest-first). "All weeks" only if there are none at all.
     const thisWeek = currentWeekStartKey();
-    sel.value = weeks.includes(thisWeek) ? thisWeek : '';
+    sel.value = weeks.includes(thisWeek) ? thisWeek : (weeks[0] || '');
   }else{
     sel.value = current;
   }
