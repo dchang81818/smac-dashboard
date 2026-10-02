@@ -231,7 +231,7 @@
   .roster-name-input:focus{ border-color:var(--lane); background:#fff; outline:none; }
 
   /* CONFIDENCE JARS */
-  .jar-controls{margin-bottom:16px;}
+  .jar-controls{margin-bottom:16px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
   .jar-controls select{
     font-family:'Inter',sans-serif; font-size:14px; padding:9px 12px; border:1px solid #C9DEDE; border-radius:6px; background:#fff; color:var(--ink);
   }
@@ -306,6 +306,14 @@
     width:100%; font-family:'Inter',sans-serif; font-size:14px; padding:9px 10px; border:1px solid #C9DEDE; border-radius:6px; background:#fff; color:var(--ink);
   }
   .reminder-modal-btns{display:flex; gap:8px; margin-top:6px;}
+  .self-shoutout-modal{max-width:380px;}
+  .self-shoutout-modal h3{font-size:18px; margin-bottom:10px;}
+  .self-shoutout-sets{display:flex; flex-wrap:wrap; gap:8px;}
+  .self-shoutout-set-opt{
+    display:flex; align-items:center; gap:5px; font-family:'IBM Plex Mono',monospace; font-size:12px;
+    border:1px solid #C9DEDE; border-radius:14px; padding:5px 10px; background:#F6FAFA; cursor:pointer;
+  }
+  .self-shoutout-set-opt input{margin:0;}
   .reminder-set-row{display:flex; align-items:flex-start; justify-content:space-between; padding:9px 4px; border-bottom:1px solid #E4EEEE; font-size:13.5px;}
   .reminder-set-row:last-child{border-bottom:none;}
   .reminder-set-row .star{color:var(--rope); margin-right:6px;}
@@ -409,6 +417,7 @@
       <select id="shoutoutWeekFilter" onchange="onShoutoutWeekFilterChange()">
         <option value="">All weeks</option>
       </select>
+      <button class="btn secondary" onclick="openSelfShoutoutPrompt()">Give Self-Shoutout</button>
     </div>
     <div class="bulletin-board">
       <div class="sticky-board" id="shoutoutGrid"></div>
@@ -588,6 +597,10 @@
 
   <div class="jar-modal-overlay" id="importModalOverlay" onclick="if(event.target===this) closeImportModal();">
     <div class="jar-modal reminder-modal" id="importModalContent"></div>
+  </div>
+
+  <div class="jar-modal-overlay" id="selfShoutoutOverlay">
+    <div class="jar-modal reminder-modal self-shoutout-modal" id="selfShoutoutContent"></div>
   </div>
 
   <footer id="lastUpdated"></footer>
@@ -937,6 +950,7 @@ function render(){
   renderJarsSafely();
   safeRender('renderShoutouts', renderShoutouts);
   safeRender('renderReminderSetsList', renderReminderSetsList);
+  safeRender('maybeShowSelfShoutoutPrompt', maybeShowSelfShoutoutPrompt);
 }
 
 function sortedMeets(){
@@ -1776,6 +1790,151 @@ async function deleteShoutout(i){
   data.shoutouts.splice(i,1);
   await saveData();
   renderShoutouts();
+}
+
+/* ---- Weekend self-shoutout prompt ---- */
+function weekPracticeTypesForSwimmer(swimmerId){
+  const weekKey = currentWeekStartKey();
+  const types = [];
+  attendanceDates().forEach(k=>{
+    if(weekStartKeyForDate(keyDate(k)) !== weekKey) return;
+    const rec = data.attendance[k] || {};
+    if(rec[swimmerId]===true){
+      const type = (data.practiceType && data.practiceType[k]) || 'unspecified';
+      if(!types.includes(type)) types.push(type);
+    }
+  });
+  return types;
+}
+
+function formatSelfShoutoutText(types){
+  if(!types.length) return 'Shoutout to myself for a great week of practice!';
+  const labels = types.map(t=>PRACTICE_TYPE_LABELS[t] || t);
+  if(labels.length===1) return 'Shoutout to myself for crushing my '+labels[0]+' sets this week!';
+  const last = labels[labels.length-1];
+  const rest = labels.slice(0,-1).join(', ');
+  return 'Shoutout to myself for crushing my '+rest+' and '+last+' sets this week!';
+}
+
+function selfShoutoutDismissKey(){
+  return 'smac_self_shoutout_dismissed_' + groupId + '_' + new Date().toISOString().slice(0,10);
+}
+
+function maybeShowSelfShoutoutPrompt(){
+  try{
+    const day = new Date().getDay();
+    if(day!==0 && day!==6) return; // only Saturday (6) and Sunday (0)
+    if(localStorage.getItem(selfShoutoutDismissKey())) return; // already handled today
+  }catch(e){ return; }
+  openSelfShoutoutPrompt(true);
+}
+
+function openSelfShoutoutPrompt(fromWeekendPrompt){
+  renderSelfShoutoutModal(!!fromWeekendPrompt);
+  const overlay = document.getElementById('selfShoutoutOverlay');
+  if(overlay) overlay.classList.add('open');
+}
+
+const WEEKEND_DAY_NAMES = {0:'Sunday', 6:'Saturday'};
+
+function renderSelfShoutoutModal(fromWeekendPrompt){
+  const content = document.getElementById('selfShoutoutContent');
+  if(!content) return;
+  const weekendDayName = WEEKEND_DAY_NAMES[new Date().getDay()];
+  const title = (fromWeekendPrompt && weekendDayName)
+    ? 'Happy '+weekendDayName+'! Time to give yourself a Shoutout!'
+    : 'Give Yourself a Shoutout!';
+  const dismissBtn = fromWeekendPrompt
+    ? '<button class="btn secondary" onclick="dismissSelfShoutoutPrompt()">Already done!</button>'
+    : '<button class="btn secondary" onclick="closeSelfShoutoutModal()">Cancel</button>';
+  const options = '<option value="">Pick your name…</option>' +
+    sortedRoster().map(s=>'<option value="'+s.id+'">'+escapeHtml(s.name)+'</option>').join('');
+  content.innerHTML =
+    '<h3>'+escapeHtml(title)+'</h3>' +
+    '<div class="form-row"><label class="hint">Who are you?</label>' +
+    '<select id="selfShoutoutName" onchange="onSelfShoutoutNameChange()">'+options+'</select></div>' +
+    '<div id="selfShoutoutSetsWrap"></div>' +
+    '<div class="form-row"><label class="hint">Your shoutout:</label>' +
+    '<textarea id="selfShoutoutText" rows="3" placeholder="Pick your name to build your shoutout…"></textarea></div>' +
+    '<div id="selfShoutoutError" class="status-msg err"></div>' +
+    '<div class="reminder-modal-btns">' +
+    '<button class="btn" onclick="submitSelfShoutout()">Give Myself a Shoutout!</button>' +
+    dismissBtn +
+    '</div>';
+}
+
+function closeSelfShoutoutModal(){
+  const overlay = document.getElementById('selfShoutoutOverlay');
+  if(overlay) overlay.classList.remove('open');
+}
+
+function onSelfShoutoutNameChange(){
+  const sel = document.getElementById('selfShoutoutName');
+  const wrap = document.getElementById('selfShoutoutSetsWrap');
+  const errEl = document.getElementById('selfShoutoutError');
+  if(!sel || !wrap) return;
+  if(errEl) errEl.textContent = '';
+  const swimmerId = sel.value;
+  if(!swimmerId){
+    wrap.innerHTML = '';
+    const textEl = document.getElementById('selfShoutoutText');
+    if(textEl) textEl.value = '';
+    return;
+  }
+  const types = weekPracticeTypesForSwimmer(swimmerId);
+  if(types.length===0){
+    wrap.innerHTML = '<p class="hint">No logged sets for you yet this week — that\'s okay, give yourself a shoutout anyway!</p>';
+  }else{
+    wrap.innerHTML = '<div class="form-row"><label class="hint">Sets you crushed this week:</label>' +
+      '<div class="self-shoutout-sets">' +
+      types.map(t=>{
+        const label = PRACTICE_TYPE_LABELS[t] || t;
+        return '<label class="self-shoutout-set-opt"><input type="checkbox" value="'+t+'" checked onchange="updateSelfShoutoutTextFromSets()">'+escapeHtml(label)+'</label>';
+      }).join('') +
+      '</div></div>';
+  }
+  updateSelfShoutoutTextFromSets();
+}
+
+function selectedSelfShoutoutTypes(){
+  return Array.from(document.querySelectorAll('.self-shoutout-set-opt input[type=checkbox]:checked')).map(cb=>cb.value);
+}
+
+function updateSelfShoutoutTextFromSets(){
+  const textEl = document.getElementById('selfShoutoutText');
+  if(!textEl) return;
+  textEl.value = formatSelfShoutoutText(selectedSelfShoutoutTypes());
+}
+
+async function submitSelfShoutout(){
+  const sel = document.getElementById('selfShoutoutName');
+  const errEl = document.getElementById('selfShoutoutError');
+  const textEl = document.getElementById('selfShoutoutText');
+  if(!sel || !sel.value){
+    if(errEl) errEl.textContent = 'Pick your name first!';
+    return;
+  }
+  const swimmer = data.roster.find(s=>s.id===sel.value);
+  if(!swimmer){
+    if(errEl) errEl.textContent = "Couldn't find that swimmer — try again.";
+    return;
+  }
+  const text = (textEl && textEl.value.trim()) || formatSelfShoutoutText([]);
+  data.shoutouts.unshift({
+    name: swimmer.name,
+    text,
+    date: new Date().toISOString().slice(0,10),
+    recipients: [swimmer.name]
+  });
+  await saveData();
+  renderShoutouts();
+  dismissSelfShoutoutPrompt();
+}
+
+function dismissSelfShoutoutPrompt(){
+  const overlay = document.getElementById('selfShoutoutOverlay');
+  if(overlay) overlay.classList.remove('open');
+  try{ localStorage.setItem(selfShoutoutDismissKey(), '1'); }catch(e){}
 }
 
 let clearAllShoutoutsArmed = false;
