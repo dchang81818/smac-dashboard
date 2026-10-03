@@ -748,6 +748,7 @@ async function loadData(){
   if(!data.practiceSets) data.practiceSets = {};
   if(!data.nicknames) data.nicknames = {};
   if(!data.shoutouts) data.shoutouts = [];
+  ensureShoutoutIds(data.shoutouts);
   render();
 }
 
@@ -1386,6 +1387,58 @@ async function saveAttendanceNow(){
   return ok;
 }
 
+/* ---- Race-safe shoutout writes ----
+   Every other save in this app overwrites the WHOLE shared document with whatever
+   `data` happens to be sitting in this browser's memory. That's fine for things only
+   one person edits at a time, but shoutouts get written from multiple places at once
+   (any swimmer's self-shoutout, the coach's manual add/delete, and the GroupMe sync
+   Cloud Function running every few minutes on Saturdays) — so a plain overwrite can
+   silently erase someone else's just-added shoutout if it lands in between. These
+   helpers instead use a Firestore transaction that re-reads the live shoutouts array
+   immediately before writing, so concurrent additions/edits can never clobber each other. */
+function genShoutoutId(){
+  return 'so_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8);
+}
+
+function ensureShoutoutIds(list){
+  (list||[]).forEach(s=>{ if(!s.id) s.id = genShoutoutId(); });
+  return list||[];
+}
+
+async function mutateShoutoutsTransactional(mutatorFn){
+  if(!dataLoadedSuccessfully){
+    const footer = document.getElementById('lastUpdated');
+    if(footer) footer.textContent = "⚠ Save blocked — this page never successfully loaded the real data, so saving now could overwrite it. Reload the page and try again.";
+    lastSaveFailed = true;
+    return false;
+  }
+  if(!db){
+    lastSaveFailed = true;
+    return false;
+  }
+  const ref = dashboardDocRef();
+  try{
+    const newShoutouts = await db.runTransaction(async (tx)=>{
+      const snap = await tx.get(ref);
+      const remote = (snap.exists && snap.data().json) ? JSON.parse(snap.data().json) : structuredClone(DEFAULTS);
+      if(!remote.shoutouts) remote.shoutouts = [];
+      ensureShoutoutIds(remote.shoutouts);
+      mutatorFn(remote.shoutouts);
+      tx.set(ref, { json: JSON.stringify(remote), updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+      return remote.shoutouts;
+    });
+    data.shoutouts = newShoutouts; // only sync the shoutouts field locally — leave any other unsaved in-progress edits alone
+    document.getElementById('lastUpdated').textContent = 'Updated ' + new Date().toLocaleString();
+    lastSaveFailed = false;
+    return true;
+  }catch(e){
+    const footer = document.getElementById('lastUpdated');
+    if(footer) footer.textContent = "Last save didn't go through (" + (e && (e.message || e.code) || String(e)) + ") — try again.";
+    lastSaveFailed = true;
+    return false;
+  }
+}
+
 function shoutoutWeeksPresent(){
   const weeks = new Set();
   data.shoutouts.forEach(s=>{
@@ -1440,8 +1493,7 @@ function renderShoutouts(){
     return;
   }
   const filtered = data.shoutouts
-    .map((s,i)=>({s,i}))
-    .filter(({s}) => {
+    .filter((s) => {
       const matchesPerson = !personFilter || (s.recipients||[]).includes(personFilter) || (s.recipients||[]).includes('Everyone');
       const matchesWeek = !weekFilter || (s.date && weekStartKeyForDate(s.date)===weekFilter);
       return matchesPerson && matchesWeek;
@@ -1450,15 +1502,15 @@ function renderShoutouts(){
     grid.innerHTML = '<div class="empty-state">No shoutouts match this filter.</div>';
     return;
   }
-  grid.innerHTML = filtered.map(({s,i}, idx)=>{
+  grid.innerHTML = filtered.map((s, idx)=>{
     const colorClass = STICKY_COLORS[idx % STICKY_COLORS.length];
     const rotClass = 'rot'+(idx % 5);
     const recipientsText = (s.recipients||[]).join(', ');
     const recipients = editMode
-      ? '<input type="text" class="sticky-recipients-input" value="'+escapeHtml(recipientsText)+'" placeholder="Recipients (names, or Everyone)" onchange="updateShoutoutRecipients('+i+', this.value)">'
+      ? '<input type="text" class="sticky-recipients-input" value="'+escapeHtml(recipientsText)+'" placeholder="Recipients (names, or Everyone)" onchange="updateShoutoutRecipients(\''+s.id+'\', this.value)">'
       : (recipientsText ? '<div class="sticky-recipients">→ '+escapeHtml(recipientsText)+'</div>' : '');
     return '<div class="sticky-star '+colorClass+' '+rotClass+'">' +
-      (editMode ? '<button class="del-btn sticky-del" onclick="deleteShoutout('+i+')">✕</button>' : '') +
+      (editMode ? '<button class="del-btn sticky-del" onclick="deleteShoutout(\''+s.id+'\')">✕</button>' : '') +
       '<div class="sticky-content">' +
         '<div class="sticky-name">'+escapeHtml(s.name)+'</div>' +
         '<div class="sticky-text">'+escapeHtml(s.text)+'</div>' +
@@ -1469,12 +1521,12 @@ function renderShoutouts(){
   }).join('');
 }
 
-async function updateShoutoutRecipients(i, value){
-  const shoutout = data.shoutouts[i];
-  if(!shoutout) return;
+async function updateShoutoutRecipients(id, value){
   const parts = value.split(',').map(p=>p.trim()).filter(Boolean);
-  shoutout.recipients = parts;
-  await saveData();
+  await mutateShoutoutsTransactional(list => {
+    const shoutout = list.find(s=>s.id===id);
+    if(shoutout) shoutout.recipients = parts;
+  });
   renderShoutouts();
 }
 
@@ -1777,18 +1829,22 @@ async function addManualShoutout(){
   const recipientsRaw = document.getElementById('sRecipients').value.trim();
   const recipients = recipientsRaw ? recipientsRaw.split(',').map(r=>r.trim()).filter(Boolean) : [];
   if(!name || !text) return;
-  data.shoutouts.unshift({name, text, date: dateVal || new Date().toISOString().slice(0,10), recipients});
-  document.getElementById('sName').value='';
-  document.getElementById('sText').value='';
-  document.getElementById('sDate').value='';
-  document.getElementById('sRecipients').value='';
-  await saveData();
+  const entry = {id: genShoutoutId(), name, text, date: dateVal || new Date().toISOString().slice(0,10), recipients};
+  const ok = await mutateShoutoutsTransactional(list => { list.unshift(entry); });
+  if(ok){
+    document.getElementById('sName').value='';
+    document.getElementById('sText').value='';
+    document.getElementById('sDate').value='';
+    document.getElementById('sRecipients').value='';
+  }
   renderShoutouts();
 }
 
-async function deleteShoutout(i){
-  data.shoutouts.splice(i,1);
-  await saveData();
+async function deleteShoutout(id){
+  await mutateShoutoutsTransactional(list => {
+    const idx = list.findIndex(s=>s.id===id);
+    if(idx!==-1) list.splice(idx,1);
+  });
   renderShoutouts();
 }
 
@@ -1920,13 +1976,18 @@ async function submitSelfShoutout(){
     return;
   }
   const text = (textEl && textEl.value.trim()) || formatSelfShoutoutText([]);
-  data.shoutouts.unshift({
+  const entry = {
+    id: genShoutoutId(),
     name: swimmer.name,
     text,
     date: new Date().toISOString().slice(0,10),
     recipients: [swimmer.name]
-  });
-  await saveData();
+  };
+  const ok = await mutateShoutoutsTransactional(list => { list.unshift(entry); });
+  if(!ok){
+    if(errEl) errEl.textContent = "Couldn't save — check your connection and try again.";
+    return;
+  }
   renderShoutouts();
   dismissSelfShoutoutPrompt();
 }
@@ -1999,8 +2060,7 @@ async function clearAllShoutouts(){
   if(clearAllShoutoutsTimer) clearTimeout(clearAllShoutoutsTimer);
   clearAllShoutoutsArmed = false;
   if(btn) btn.textContent = 'Clear all shoutouts';
-  data.shoutouts = [];
-  await saveData();
+  await mutateShoutoutsTransactional(list => { list.length = 0; });
   renderShoutouts();
 }
 
@@ -2263,19 +2323,22 @@ async function addSelectedShoutouts(){
   const checks = document.querySelectorAll('.import-check:checked');
   if(checks.length===0) return;
   const today = new Date().toISOString().slice(0,10);
+  const entries = [];
   checks.forEach(c=>{
     const idx = Number(c.getAttribute('data-idx'));
     const m = pendingImport[idx];
-    if(m) data.shoutouts.unshift({ name: m.name, text: m.text, date: m.date || today, recipients: m.recipients || [] });
+    if(m) entries.push({ id: genShoutoutId(), name: m.name, text: m.text, date: m.date || today, recipients: m.recipients || [] });
   });
-  await saveData();
+  const ok = await mutateShoutoutsTransactional(list => { entries.forEach(e=>list.unshift(e)); });
   renderShoutouts();
-  document.getElementById('importStatus').textContent = checks.length + ' added.';
-  document.getElementById('importStatus').className = 'status-msg ok';
-  document.getElementById('importList').style.display='none';
-  document.getElementById('addSelectedBtn').style.display='none';
-  document.getElementById('selectAllBtn').style.display='none';
-  document.getElementById('groupmePaste').value='';
+  document.getElementById('importStatus').textContent = ok ? (checks.length + ' added.') : "Couldn't save — try again.";
+  document.getElementById('importStatus').className = ok ? 'status-msg ok' : 'status-msg err';
+  if(ok){
+    document.getElementById('importList').style.display='none';
+    document.getElementById('addSelectedBtn').style.display='none';
+    document.getElementById('selectAllBtn').style.display='none';
+    document.getElementById('groupmePaste').value='';
+  }
 }
 
 setInterval(async ()=>{
