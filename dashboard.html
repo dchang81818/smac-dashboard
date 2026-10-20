@@ -306,6 +306,9 @@
     width:100%; font-family:'Inter',sans-serif; font-size:14px; padding:9px 10px; border:1px solid #C9DEDE; border-radius:6px; background:#fff; color:var(--ink);
   }
   .reminder-modal-btns{display:flex; gap:8px; margin-top:6px;}
+  .reminder-session-list{max-height:220px; overflow-y:auto; margin-bottom:10px;}
+  .reminder-session-opt{display:block; padding:7px 4px; border-bottom:1px solid #E4EEEE; font-size:13.5px; cursor:pointer;}
+  .reminder-session-opt em{color:var(--lane); font-size:12px;}
   .self-shoutout-modal{max-width:380px;}
   .self-shoutout-modal h3{font-size:18px; margin-bottom:10px;}
   .self-shoutout-sets{display:flex; flex-wrap:wrap; gap:8px;}
@@ -470,8 +473,8 @@
   <section>
     <h2>Confidence Reminder Sets</h2>
     <p class="section-sub" id="seasonDriveLine"></p>
-    <p class="section-sub">If you conquered a set this week that you want to remember before a big meet, click this button and select the day/set to remember</p>
-    <button class="btn" onclick="openReminderModal()">Save a Set From This Week</button>
+    <p class="section-sub">If you conquered a set that you want to remember before a big meet, click this button, pick a week, and check the practices you attended that you want to save</p>
+    <button class="btn" onclick="openReminderModal()">Save a Set</button>
 
     <div class="edit-panel" id="practiceSetsEditPanel">
       <h3>Import this week's practice document</h3>
@@ -598,6 +601,10 @@
 
   <div class="jar-modal-overlay" id="importModalOverlay" onclick="if(event.target===this) closeImportModal();">
     <div class="jar-modal reminder-modal" id="importModalContent"></div>
+  </div>
+
+  <div class="jar-modal-overlay" id="welcomeOverlay">
+    <div class="jar-modal reminder-modal self-shoutout-modal" id="welcomeContent"></div>
   </div>
 
   <div class="jar-modal-overlay" id="selfShoutoutOverlay">
@@ -952,7 +959,7 @@ function render(){
   renderJarsSafely();
   safeRender('renderShoutouts', renderShoutouts);
   safeRender('renderReminderSetsList', renderReminderSetsList);
-  safeRender('maybeShowSelfShoutoutPrompt', maybeShowSelfShoutoutPrompt);
+  safeRender('showWelcomePicker', showWelcomePicker);
 }
 
 function sortedMeets(){
@@ -1661,24 +1668,69 @@ function thisWeekSessionKeys(){
   });
 }
 
+function attendedSessionsByWeek(swimmerId){
+  const byWeek = {};
+  attendanceDates().forEach(k=>{
+    const rec = data.attendance[k] || {};
+    if(rec[swimmerId]!==true) return;
+    const w = weekStartKeyForDate(keyDate(k));
+    (byWeek[w] = byWeek[w] || []).push(k);
+  });
+  return byWeek;
+}
+
 function openReminderModal(){
-  const sessions = thisWeekSessionKeys();
   const currentFilter = getTeamFilterValue();
   const swimmerOptions = sortedRoster().map(s=>
     '<option value="'+s.id+'"'+(s.name===currentFilter?' selected':'')+'>'+escapeHtml(s.name)+'</option>'
   ).join('');
-  const sessionOptions = sessions.length
-    ? sessions.map(k=>'<option value="'+k+'">'+escapeHtml(formatSessionLabel(k, {weekday:'long', month:'long', day:'numeric'}))+'</option>').join('')
-    : '<option value="">No practices logged yet this week</option>';
   document.getElementById('reminderModalContent').innerHTML =
     '<h3>Save a Set</h3>' +
-    '<div class="form-row"><select id="reminderSwimmerSelect">'+swimmerOptions+'</select></div>' +
-    '<div class="form-row"><select id="reminderSessionSelect">'+sessionOptions+'</select></div>' +
+    '<div class="form-row"><select id="reminderSwimmerSelect" onchange="refreshReminderModalWeeks()">'+swimmerOptions+'</select></div>' +
+    '<div class="form-row"><select id="reminderModalWeek" onchange="renderReminderModalSessions()"></select></div>' +
+    '<div id="reminderModalSessions" class="reminder-session-list"></div>' +
+    '<div id="reminderModalError" class="status-msg err"></div>' +
     '<div class="reminder-modal-btns">' +
-    '<button class="btn" onclick="saveReminderSet()">Save</button>' +
+    '<button class="btn" onclick="saveReminderSet()">Save selected</button>' +
     '<button class="btn secondary" onclick="closeReminderModal()">Cancel</button>' +
     '</div>';
   document.getElementById('reminderModalOverlay').classList.add('open');
+  refreshReminderModalWeeks();
+}
+
+function refreshReminderModalWeeks(){
+  const swimmerId = document.getElementById('reminderSwimmerSelect').value;
+  const weekSel = document.getElementById('reminderModalWeek');
+  const byWeek = attendedSessionsByWeek(swimmerId);
+  const weeks = Object.keys(byWeek).sort().reverse();
+  if(weeks.length===0){
+    weekSel.innerHTML = '<option value="">No attended practices logged yet</option>';
+    renderReminderModalSessions();
+    return;
+  }
+  const thisWeek = startOfWeek(new Date()).toISOString().slice(0,10);
+  const defaultWeek = weeks.includes(thisWeek) ? thisWeek : weeks[0];
+  weekSel.innerHTML = weeks.map(w=>'<option value="'+w+'"'+(w===defaultWeek?' selected':'')+'>'+escapeHtml(formatWeekRangeLabel(w))+'</option>').join('');
+  renderReminderModalSessions();
+}
+
+function renderReminderModalSessions(){
+  const swimmerId = document.getElementById('reminderSwimmerSelect').value;
+  const week = document.getElementById('reminderModalWeek').value;
+  const box = document.getElementById('reminderModalSessions');
+  const errEl = document.getElementById('reminderModalError');
+  if(errEl) errEl.textContent = '';
+  const keys = (week && attendedSessionsByWeek(swimmerId)[week]) || [];
+  if(keys.length===0){ box.innerHTML = ''; return; }
+  const saved = (data.confidenceReminders && data.confidenceReminders[swimmerId]) || [];
+  box.innerHTML = keys.map(k=>{
+    const already = saved.includes(k);
+    const type = data.practiceType && data.practiceType[k];
+    const typeLabel = type ? ' · '+(PRACTICE_TYPE_LABELS[type]||type) : '';
+    return '<label class="reminder-session-opt"><input type="checkbox" value="'+k+'"'+(already?' checked disabled':'')+'> ' +
+      escapeHtml(formatSessionLabel(k, {weekday:'long', month:'long', day:'numeric'})) + escapeHtml(typeLabel) +
+      (already?' <em>(saved)</em>':'') + '</label>';
+  }).join('');
 }
 
 function closeReminderModal(){
@@ -1687,13 +1739,18 @@ function closeReminderModal(){
 
 async function saveReminderSet(){
   const swimmerId = document.getElementById('reminderSwimmerSelect').value;
-  const sessionKey = document.getElementById('reminderSessionSelect').value;
-  if(!swimmerId || !sessionKey) return;
+  const checked = Array.from(document.querySelectorAll('#reminderModalSessions input[type=checkbox]:checked:not(:disabled)')).map(c=>c.value);
+  if(!swimmerId) return;
+  if(checked.length===0){
+    const errEl = document.getElementById('reminderModalError');
+    if(errEl) errEl.textContent = 'Check at least one practice to save.';
+    return;
+  }
   if(!data.confidenceReminders) data.confidenceReminders = {};
   if(!data.confidenceReminders[swimmerId]) data.confidenceReminders[swimmerId] = [];
-  if(!data.confidenceReminders[swimmerId].includes(sessionKey)){
-    data.confidenceReminders[swimmerId].push(sessionKey);
-  }
+  checked.forEach(k=>{
+    if(!data.confidenceReminders[swimmerId].includes(k)) data.confidenceReminders[swimmerId].push(k);
+  });
   closeReminderModal();
   await saveData();
   renderReminderSetsList();
@@ -1892,6 +1949,42 @@ function selfShoutoutDismissKey(){
   return 'smac_self_shoutout_dismissed_' + groupId + '_' + new Date().toISOString().slice(0,10);
 }
 
+/* ---- Welcome picker: shown on every page open ---- */
+function showWelcomePicker(){
+  const content = document.getElementById('welcomeContent');
+  if(!content || !data.roster || data.roster.length===0){
+    maybeShowSelfShoutoutPrompt();
+    return;
+  }
+  const options = '<option value="">Select your name…</option>' +
+    sortedRoster().map(s=>'<option value="'+escapeHtml(s.name)+'">'+escapeHtml(s.name)+'</option>').join('');
+  content.innerHTML =
+    '<h3>Select your name, or View the whole team</h3>' +
+    '<p class="hint" style="text-align:center;">Pick your name to see your own jars, shoutouts and saved sets.</p>' +
+    '<div class="form-row"><select id="welcomeSwimmerSelect" onchange="chooseWelcomeSwimmer()">'+options+'</select></div>' +
+    '<p class="hint" style="text-align:center;">— or —</p>' +
+    '<div class="reminder-modal-btns"><button class="btn secondary" style="flex:1;" onclick="chooseWholeTeam()">View whole team</button></div>';
+  document.getElementById('welcomeOverlay').classList.add('open');
+}
+
+function closeWelcomePicker(){
+  document.getElementById('welcomeOverlay').classList.remove('open');
+  maybeShowSelfShoutoutPrompt();
+}
+
+function chooseWelcomeSwimmer(){
+  const name = document.getElementById('welcomeSwimmerSelect').value;
+  if(!name) return;
+  const filterEl = document.getElementById('teamFilter');
+  if(filterEl) filterEl.value = name;
+  applyTeamFilter();
+  closeWelcomePicker();
+}
+
+function chooseWholeTeam(){
+  closeWelcomePicker();
+}
+
 function maybeShowSelfShoutoutPrompt(){
   try{
     const day = new Date().getDay();
@@ -1919,8 +2012,9 @@ function renderSelfShoutoutModal(fromWeekendPrompt){
   const dismissBtn = fromWeekendPrompt
     ? '<button class="btn secondary" onclick="dismissSelfShoutoutPrompt()">Already done!</button>'
     : '<button class="btn secondary" onclick="closeSelfShoutoutModal()">Cancel</button>';
+  const filterName = getTeamFilterValue();
   const options = '<option value="">Pick your name…</option>' +
-    sortedRoster().map(s=>'<option value="'+s.id+'">'+escapeHtml(s.name)+'</option>').join('');
+    sortedRoster().map(s=>'<option value="'+s.id+'"'+(s.name===filterName?' selected':'')+'>'+escapeHtml(s.name)+'</option>').join('');
   content.innerHTML =
     '<h3>'+escapeHtml(title)+'</h3>' +
     '<div class="form-row"><label class="hint">Who are you?</label>' +
@@ -1933,6 +2027,7 @@ function renderSelfShoutoutModal(fromWeekendPrompt){
     '<button class="btn" onclick="submitSelfShoutout()">Give Myself a Shoutout!</button>' +
     dismissBtn +
     '</div>';
+  if(filterName && sortedRoster().some(s=>s.name===filterName)) onSelfShoutoutNameChange();
 }
 
 function closeSelfShoutoutModal(){
