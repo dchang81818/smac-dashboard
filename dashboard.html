@@ -274,7 +274,7 @@
   .bead-recovery{background:#FFFFFF; border:1px solid rgba(11,46,51,.25);}
   .bead-mix{background:conic-gradient(#E23B3B,#FFC94A,#3AA35A,#2C6FBB,#8B5FBF,#E23B3B);}
   .bead-weights{background:#3AA35A;}
-  .bead-unspecified{background:#C9D6D6; border:1px solid rgba(11,46,51,.2);}
+  .bead-unspecified{background:linear-gradient(135deg,#0B2A5B 50%,#FFFFFF 50%); border:1px solid #0B2A5B;}
   .jar-name{font-family:'Inter',sans-serif; font-weight:600; font-size:11.5px; text-align:center; margin-top:8px; line-height:1.25;}
   .jar-count{font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--lane); margin-top:2px;}
   .jars-legend{display:flex; gap:14px; flex-wrap:wrap; margin:14px 0 4px; font-family:'IBM Plex Mono',monospace; font-size:11.5px;}
@@ -405,6 +405,7 @@
       <span><i class="bead bead-recovery"></i>Recovery</span>
       <span><i class="bead bead-mix"></i>Mix</span>
       <span><i class="bead bead-weights"></i>Weights</span>
+      <span><i class="bead bead-unspecified"></i>Type not set</span>
     </div>
   </section>
 
@@ -1705,6 +1706,12 @@ async function deleteReminderSet(swimmerId, sessionKey){
   renderReminderSetsList();
 }
 
+let reminderWeekFilter = '';
+function onReminderWeekFilterChange(val){
+  reminderWeekFilter = val;
+  renderReminderSetsList();
+}
+
 function renderReminderSetsList(){
   const card = document.getElementById('reminderSetsCard');
   if(!card) return;
@@ -1727,7 +1734,16 @@ function renderReminderSetsList(){
     return;
   }
   const sorted = keys.slice().sort();
-  card.innerHTML = '<h3>Confidence Reminder Sets</h3>' + sorted.map((k,idx)=>{
+  const weeksPresent = Array.from(new Set(sorted.map(k=>weekStartKeyForDate(keyDate(k))))).sort().reverse();
+  if(reminderWeekFilter && !weeksPresent.includes(reminderWeekFilter)) reminderWeekFilter = '';
+  const weekSelectHtml = '<div class="jar-controls" style="margin-bottom:10px;">' +
+    '<select id="reminderWeekFilter" onchange="onReminderWeekFilterChange(this.value)">' +
+    '<option value="">All weeks</option>' +
+    weeksPresent.map(w=>'<option value="'+w+'"'+(w===reminderWeekFilter?' selected':'')+'>'+escapeHtml(formatWeekRangeLabel(w))+'</option>').join('') +
+    '</select></div>';
+  const visible = sorted.map((k,idx)=>({k,idx}))
+    .filter(({k}) => !reminderWeekFilter || weekStartKeyForDate(keyDate(k))===reminderWeekFilter);
+  card.innerHTML = '<h3>Confidence Reminder Sets</h3>' + weekSelectHtml + visible.map(({k,idx})=>{
     const dateKey = keyDate(k);
     const savedSet = data.practiceSets && data.practiceSets[dateKey];
     const link = weeklyDocLinkForSession(k);
